@@ -1,3 +1,27 @@
+# Ignore virtual environment folder
 venv/
-env
+
+# Ignore environment variables file
+.env
+
+# Ignore compiled Python files
 __pycache__/
+*.pyc
+*.pyo
+
+# Ignore Jupyter notebook checkpoints (if using Jupyter)
+.ipynb_checkpoints/
+
+# Ignore database migrations (if not needed on GitHub)
+migrations/
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+# Ignore log files
+*.log
+
+# Ignore any local data files or Excel files if not needed in repo
+*.xlsx
+*.csv
