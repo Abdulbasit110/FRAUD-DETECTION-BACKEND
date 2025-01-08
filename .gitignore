@@ -25,3 +25,5 @@ Thumbs.db
 # Ignore any local data files or Excel files if not needed in repo
 *.xlsx
 *.csv
+
+.codegpt

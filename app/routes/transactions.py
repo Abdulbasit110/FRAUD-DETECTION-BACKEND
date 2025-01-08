@@ -22,12 +22,13 @@ def upload_transactions():
 
         # Clean and validate data
         cleaned_data, skipped_rows = clean_transaction_data(df)
-
+        print("data cleaning successfull {cleaned_data}")
         # Insert cleaned data into the database
         for row in cleaned_data:
+            print("adding row {row}")
             transaction = Transaction(**row)
             db.session.add(transaction)
-
+        print("data added to db")
         # Commit valid rows
         db.session.commit()
 
@@ -170,7 +171,7 @@ def clean_transaction_data(df):
     for index, row in df.iterrows():
         try:
             # Validate and clean individual fields
-            # totalsale = clean_numeric(row.get("TOTALSALE"), default=None)
+            totalsale = clean_numeric(row.get("TOTALSALE"), default=None)
             payer_repcode = clean_numeric(row.get("PAYER_REPCODE"), default=None)
             sender_mobile = clean_numeric(row.get("SENDER_MOBILE"), default=None)
             beneficiary_mobile = clean_numeric(row.get("BENEFICIARY_MOBILE"), default=None)
@@ -205,7 +206,7 @@ def clean_transaction_data(df):
                 "sending_country": row.get("SENDING_COUNTRY"),
                 "payout_country": row.get("PAYOUTCOUNTRY"),
                 "status": row.get("STATUS"),
-                # "totalsale": totalsale,
+                "totalsale": totalsale,
                 "sending_currency": row.get("SENDINGCURRENCY"),
                 "payment_method": row.get("PAYMENTMETHOD"),
                 "compliance_release_date": parse_date(row.get("COMPLIANCERELEASEDATE")),
