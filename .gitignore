@@ -27,3 +27,5 @@ Thumbs.db
 *.csv
 
 .codegpt
+
+random_forest_model.pkl

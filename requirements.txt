@@ -8,3 +8,4 @@ joblib
 dotenv
 python-dotenv
 Flask-Migrate
+scikit-learn
