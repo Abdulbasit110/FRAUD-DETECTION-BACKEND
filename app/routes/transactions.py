@@ -80,43 +80,58 @@ def upload_local_transactions():
 @transaction_routes.route("/all", methods=["GET"])
 def get_all_transactions():
     try:
-        transactions = Transaction.query.all()
-        result = [
-            {
-                "id": t.id,
-                "sending_date": t.sending_date,
-                "mtn": t.mtn,
-                "sender_id": t.sender_id,
-                "sender_legalname": t.sender_legalname,
-                "channel": t.channel,
-                "payer_repcode": t.payer_repcode,
-                "sender_country": t.sender_country,
-                "sender_status": t.sender_status,
-                "sender_dob": t.sender_dob,
-                "sender_email": t.sender_email,
-                "sender_mobile": t.sender_mobile,
-                "sender_phone": t.sender_phone,
-                "beneficiary_clientid": t.beneficiary_clientid,
-                "beneficiary_name": t.beneficiary_name,
-                "beneficiary_firstname": t.beneficiary_firstname,
-                "beneficiary_country": t.beneficiary_country,
-                "beneficiary_email": t.beneficiary_email,
-                "beneficiary_mobile": t.beneficiary_mobile,
-                "beneficiary_phone": t.beneficiary_phone,
-                "sending_country": t.sending_country,
-                "payout_country": t.payout_country,
-                "status": t.status,
-                "totalsale": t.totalsale,
-                "sending_currency": t.sending_currency,
-                "payment_method": t.payment_method,
-                "compliance_release_date": t.compliance_release_date,
-                "sender_status_extra": t.sender_status_extra,
-            }
-            for t in transactions
-        ]
+        # Get the 'limit' parameter from the query string
+        limit = request.args.get('limit', default=10, type=int)  # Default to 10 records if no argument is provided
+        
+        # Query the database and limit the results
+        transactions = Transaction.query.limit(limit).all()
+        
+        # Serialize the results
+        result = [transaction.to_dict() for transaction in transactions]
+        
         return jsonify(result), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+# @transaction_routes.route("/all", methods=["GET"])
+# def get_all_transactions():
+#     try:
+#         transactions = Transaction.query.all()
+#         result = [
+#             {
+#                 "id": t.id,
+#                 "sending_date": t.sending_date,
+#                 "mtn": t.mtn,
+#                 "sender_id": t.sender_id,
+#                 "sender_legalname": t.sender_legalname,
+#                 "channel": t.channel,
+#                 "payer_repcode": t.payer_repcode,
+#                 "sender_country": t.sender_country,
+#                 "sender_status": t.sender_status,
+#                 "sender_dob": t.sender_dob,
+#                 "sender_email": t.sender_email,
+#                 "sender_mobile": t.sender_mobile,
+#                 "sender_phone": t.sender_phone,
+#                 "beneficiary_clientid": t.beneficiary_clientid,
+#                 "beneficiary_name": t.beneficiary_name,
+#                 "beneficiary_firstname": t.beneficiary_firstname,
+#                 "beneficiary_country": t.beneficiary_country,
+#                 "beneficiary_email": t.beneficiary_email,
+#                 "beneficiary_mobile": t.beneficiary_mobile,
+#                 "beneficiary_phone": t.beneficiary_phone,
+#                 "sending_country": t.sending_country,
+#                 "payout_country": t.payout_country,
+#                 "status": t.status,
+#                 "totalsale": t.totalsale,
+#                 "sending_currency": t.sending_currency,
+#                 "payment_method": t.payment_method,
+#                 "compliance_release_date": t.compliance_release_date,
+#                 "sender_status_extra": t.sender_status_extra,
+#             }
+#             for t in transactions
+#         ]
+#         return jsonify(transactions), 200
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
 
 # GET: Fetch a transaction by ID
 @transaction_routes.route("/<int:transaction_id>", methods=["GET"])
