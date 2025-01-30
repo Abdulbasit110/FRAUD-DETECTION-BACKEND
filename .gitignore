@@ -29,3 +29,6 @@ Thumbs.db
 .codegpt
 
 random_forest_model.pkl
+.vercel
+.vercelignore
+

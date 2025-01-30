@@ -20,7 +20,7 @@ def create_app():
     app.register_blueprint(user_routes, url_prefix="/users")
     app.register_blueprint(predict_bp, url_prefix="/model") 
     
-    @app.route('/ping')
+    @app.route('/')
     def ping():
         return "Server is up and running!", 200
 

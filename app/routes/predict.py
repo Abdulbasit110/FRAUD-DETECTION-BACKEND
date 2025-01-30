@@ -1,12 +1,14 @@
 from flask import Blueprint, request, jsonify
 import joblib
 import numpy as np
+import os
 
 # Define a new blueprint for predictions
 predict_bp = Blueprint('predict', __name__)
 
 # Load the Random Forest model
-model = joblib.load('random_forest_model.pkl')
+model_path = os.path.join(os.path.dirname(__file__), '../../random_forest_model.pkl')
+model = joblib.load(model_path)
 
 @predict_bp.route('/predict', methods=['POST'])
 def predict():
