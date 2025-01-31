@@ -30,23 +30,23 @@ def predict():
         # Parse input JSON
         data = request.get_json(force=True)
 
-        # Extract transaction details
+        # Create transaction with initial "Pending" status
         transaction = Transaction(
             sending_date=data.get("sending_date"),
             mtn=data.get("mtn"),
             sender_id=data.get("sender_id"),
-            sender_legalname=data.get("sender_legalname"),
+            sender_legal_name=data.get("sender_legal_name"),
             channel=data.get("channel"),
-            payer_repcode=data.get("payer_repcode"),
+            payer_rep_code=data.get("payer_rep_code"),
             sender_country=data.get("sender_country"),
             sender_status=data.get("sender_status"),
-            sender_dob=data.get("sender_dob"),
+            sender_date_of_birth=data.get("sender_date_of_birth"),
             sender_email=data.get("sender_email"),
             sender_mobile=data.get("sender_mobile"),
             sender_phone=data.get("sender_phone"),
-            beneficiary_clientid=data.get("beneficiary_clientid"),
+            beneficiary_client_id=data.get("beneficiary_client_id"),
             beneficiary_name=data.get("beneficiary_name"),
-            beneficiary_firstname=data.get("beneficiary_firstname"),
+            beneficiary_first_name=data.get("beneficiary_first_name"),
             beneficiary_country=data.get("beneficiary_country"),
             beneficiary_email=data.get("beneficiary_email"),
             beneficiary_mobile=data.get("beneficiary_mobile"),
@@ -54,22 +54,22 @@ def predict():
             sending_country=data.get("sending_country"),
             payout_country=data.get("payout_country"),
             status="Pending",  # Default status before prediction
-            totalsale=data.get("totalsale"),
+            total_sale=data.get("total_sale"),
             sending_currency=data.get("sending_currency"),
             payment_method=data.get("payment_method"),
             compliance_release_date=data.get("compliance_release_date"),
-            sender_status_extra=data.get("sender_status_extra"),
+            sender_status_detail=None  # Initially None, will be updated after prediction
         )
 
-        # Save transaction to DB
+        # Save transaction to DB with pending status
         db.session.add(transaction)
         db.session.commit()
 
         # Extract relevant features for prediction
         try:
             features = [
-                data.get("totalsale"),  # Example: Using totalsale and other fields for prediction
-                data.get("payer_repcode"),
+                data.get("total_sale"),  # Ensure correct feature name
+                data.get("payer_rep_code"),  # Match naming convention
                 data.get("sending_currency"),
                 data.get("payment_method"),
             ]
@@ -85,6 +85,7 @@ def predict():
 
         # Update transaction with prediction result
         transaction.status = f"Predicted: {predicted_label}"
+        transaction.sender_status_detail = f"Auto-assigned status based on prediction {predicted_label}"
         db.session.commit()
 
         # Create notification for the user

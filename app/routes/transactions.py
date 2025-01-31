@@ -102,6 +102,95 @@ def get_transaction_by_id(transaction_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@transaction_routes.route("/by-date", methods=["GET"])
+def get_transactions_by_date():
+    try:
+        start_date = request.args.get("start_date")
+        end_date = request.args.get("end_date")
+
+        if not start_date or not end_date:
+            return jsonify({"error": "Start date and end date are required"}), 400
+
+        transactions = Transaction.query.filter(
+            Transaction.sending_date.between(start_date, end_date)
+        ).all()
+
+        return jsonify([t.to_dict() for t in transactions]), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+@transaction_routes.route("/by-sender", methods=["GET"])
+def get_transactions_by_sender():
+    try:
+        sender_id = request.args.get("sender_id")
+
+        if not sender_id:
+            return jsonify({"error": "Sender ID is required"}), 400
+
+        transactions = Transaction.query.filter_by(sender_id=sender_id).all()
+
+        return jsonify([t.to_dict() for t in transactions]), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@transaction_routes.route("/by-beneficiary", methods=["GET"])
+def get_transactions_by_beneficiary():
+    try:
+        beneficiary_id = request.args.get("beneficiary_id")
+
+        if not beneficiary_id:
+            return jsonify({"error": "Beneficiary ID is required"}), 400
+
+        transactions = Transaction.query.filter_by(beneficiary_client_id=beneficiary_id).all()
+
+        return jsonify([t.to_dict() for t in transactions]), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@transaction_routes.route("/sales-summary", methods=["GET"])
+def get_sales_summary():
+    try:
+        total_sales = db.session.query(func.sum(Transaction.total_sale)).scalar() or 0
+
+        return jsonify({"total_sales": total_sales}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@transaction_routes.route("/by-status", methods=["GET"])
+def get_transactions_by_status():
+    try:
+        status = request.args.get("status")
+
+        if not status:
+            return jsonify({"error": "Status is required"}), 400
+
+        transactions = Transaction.query.filter_by(status=status).all()
+
+        return jsonify([t.to_dict() for t in transactions]), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@transaction_routes.route("/stats", methods=["GET"])
+def get_transaction_stats():
+    try:
+        total_transactions = Transaction.query.count()
+        genuine_transactions = Transaction.query.filter(Transaction.sender_status_detail == "Genuine").count()
+        suspicious_transactions = Transaction.query.filter(Transaction.sender_status_detail == "Suspicious").count()
+
+        return jsonify({
+            "total_transactions": total_transactions,
+            "genuine_transactions": genuine_transactions,
+            "suspicious_transactions": suspicious_transactions
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
 # Function to clean transaction data
 def clean_transaction_data(df):
     cleaned_data = []
