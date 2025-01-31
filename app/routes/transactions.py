@@ -3,6 +3,7 @@ from ..models import Transaction
 from ..database import db
 import pandas as pd
 import os
+from sqlalchemy import func
 
 transaction_routes = Blueprint("transactions", __name__)
 
