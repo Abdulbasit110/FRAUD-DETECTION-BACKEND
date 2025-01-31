@@ -53,3 +53,23 @@ class Transaction(db.Model):
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+class Notification(db.Model):
+    __tablename__ = 'notifications'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String, nullable=False)  # User ID to whom the notification belongs
+    message = db.Column(db.String(255), nullable=False)  # Notification message
+    transaction_id = db.Column(db.Integer, db.ForeignKey('transactions.id'), nullable=True)  # Related transaction
+    created_at = db.Column(db.DateTime, default=func.now())  # Timestamp for the notification
+    is_read = db.Column(db.Boolean, default=False)  # Whether the notification has been read
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "message": self.message,
+            "transaction_id": self.transaction_id,
+            "created_at": self.created_at,
+            "is_read": self.is_read,
+        }

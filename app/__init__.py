@@ -4,7 +4,6 @@ from .config import Config
 from .database import db
 from .routes.transactions import transaction_routes
 from .routes.auth import auth_routes
-from .routes.users import user_routes
 from .routes.predict import predict_bp
 
 def create_app():
@@ -17,7 +16,6 @@ def create_app():
     # Register blueprints
     app.register_blueprint(transaction_routes, url_prefix="/transactions")
     app.register_blueprint(auth_routes, url_prefix="/auth")
-    app.register_blueprint(user_routes, url_prefix="/users")
     app.register_blueprint(predict_bp, url_prefix="/model") 
     
     @app.route('/')
