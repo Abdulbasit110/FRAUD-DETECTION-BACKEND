@@ -12,8 +12,8 @@ auth_routes = Blueprint("auth", __name__)
 def signup():
     data = request.json
     try:
-        hashed_password = generate_password_hash(data["password"], method="sha256")
-        user = User(id=str(uuid.uuid4()), email=data["email"], password=hashed_password)
+        hashed_password = generate_password_hash(data["password"])
+        user = User(email=data["email"], password=hashed_password)
         db.session.add(user)
         db.session.commit()
         return jsonify({"message": "User registered successfully"}), 201
@@ -40,7 +40,7 @@ def forgot_password():
     user = User.query.filter_by(email=data["email"]).first()
     if user:
         new_password = str(uuid.uuid4())[:8]
-        user.password = generate_password_hash(new_password, method="sha256")
+        user.password = generate_password_hash(new_password)
         db.session.commit()
         return jsonify({"message": f"New password is {new_password}"}), 200
     return jsonify({"error": "Email not found"}), 404
@@ -52,7 +52,7 @@ def reset_password():
     data = request.json
     user = User.query.filter_by(email=data["email"]).first()
     if user and check_password_hash(user.password, data["old_password"]):
-        user.password = generate_password_hash(data["new_password"], method="sha256")
+        user.password = generate_password_hash(data["new_password"])
         db.session.commit()
         return jsonify({"message": "Password reset successful"}), 200
     return jsonify({"error": "Invalid credentials"}), 401
