@@ -2,11 +2,10 @@ from flask import Blueprint, request, jsonify
 import joblib
 import numpy as np
 import os
-from flask_socketio import SocketIO
-from app.models import db, Transaction, Notification
-
-# Initialize SocketIO
-socketio = SocketIO(cors_allowed_origins="*")
+from flask_socketio import emit
+from sklearn.preprocessing import StandardScaler
+from app import db, socketio  # Import socketio from app/__init__.py
+from app.models import Transaction, Notification
 
 # Define a new blueprint for predictions
 predict_bp = Blueprint('predict', __name__)
@@ -16,9 +15,30 @@ MODEL_FILE = os.path.join(os.path.dirname(__file__), '../../random_forest_model.
 
 if os.path.exists(MODEL_FILE):
     model = joblib.load(MODEL_FILE)
+    print("✅ Model loaded successfully.")
 else:
     model = None
-    print("ERROR: Model file not found!")
+    print("❌ ERROR: Model file not found!")
+
+# Define the feature order used in model training
+FEATURES = [
+    "Total Trx", "Total Beneficiaries", "Total Paid out Trx", 
+    "Avg Top 05 Daily Trx", "SD of Top 5 Trx_M", "SD of Top 5 Trx_N",
+    "Avg top Volumes", "Std Dev Vol_M", "Std Dev Vol_N", 
+    "Date Differences Max", "Date Differences Avg", "Length of Seq",
+    "Avg Top 05 ATV", "Avg Bottom ATV", "Std Dev ATV", 
+    "Date Differences Avg", "Date Differences Max", "Paid %", 
+    "SD Trx Diff", "SD Trx Vol"
+]
+
+# Load StandardScaler if used during training
+SCALER_FILE = os.path.join(os.path.dirname(__file__), '../../scaler.pkl')
+if os.path.exists(SCALER_FILE):
+    scaler = joblib.load(SCALER_FILE)
+    print("✅ Scaler loaded successfully.")
+else:
+    scaler = None
+    print("⚠️ WARNING: Scaler file not found. Prediction may be affected.")
 
 @predict_bp.route('/predict', methods=['POST'])
 def predict():
@@ -30,7 +50,7 @@ def predict():
         # Parse input JSON
         data = request.get_json(force=True)
 
-        # Create transaction with initial "Pending" status
+        # Extract transaction details
         transaction = Transaction(
             sending_date=data.get("sending_date"),
             mtn=data.get("mtn"),
@@ -61,55 +81,54 @@ def predict():
             sender_status_detail=None  # Initially None, will be updated after prediction
         )
 
-        # Save transaction to DB with pending status
+        # Save transaction to DB
         db.session.add(transaction)
         db.session.commit()
 
-        # Extract relevant features for prediction
-        try:
-            features = [
-                data.get("total_sale"),  # Ensure correct feature name
-                data.get("payer_rep_code"),  # Match naming convention
-                data.get("sending_currency"),
-                data.get("payment_method"),
-            ]
-        except KeyError as e:
-            return jsonify({'error': f'Missing feature in input: {str(e)}'}), 400
-
-        # Convert features to NumPy array
+        # Extract features in the correct order
+        features = [data.get(feature, 0) for feature in FEATURES]  # Default missing features to 0
         features_array = np.array(features).reshape(1, -1)
+
+        # Apply scaling if scaler was used during training
+        if scaler:
+            features_array = scaler.transform(features_array)
 
         # Predict using the model
         prediction = model.predict(features_array)
         predicted_label = int(prediction[0])  # Convert prediction result to integer
 
+        # Map prediction output to human-readable format
+        label_map = {0: "Genuine", 1: "Suspicious"}
+        predicted_status = label_map.get(predicted_label, "Unknown")
+
         # Update transaction with prediction result
-        transaction.status = f"Predicted: {predicted_label}"
-        transaction.sender_status_detail = f"Auto-assigned status based on prediction {predicted_label}"
+        transaction.status = f"Predicted: {predicted_status}"
+        transaction.sender_status_detail = f"Auto-assigned status based on prediction: {predicted_status}"
         db.session.commit()
 
         # Create notification for the user
         notification = Notification(
-            user_id="user_id_here",  # Replace with actual user ID
-            message=f"New transaction added. Predicted category: {predicted_label}",
+            user_id="123",  # Replace with actual user ID
+            message=f"New transaction added. Predicted category: {predicted_status}",
             transaction_id=transaction.id
         )
         db.session.add(notification)
         db.session.commit()
 
         # Emit real-time notification
-        socketio.emit("new_transaction", {
-            "message": f"New transaction added. Predicted category: {predicted_label}",
+        emit("new_transaction", {
+            "message": f"New transaction added. Predicted category: {predicted_status}",
             "transaction_id": transaction.id
-        })
+        }, broadcast=True, namespace="/")
 
         return jsonify({
             "message": "Transaction added and predicted successfully.",
             "transaction_id": transaction.id,
-            "predicted_label": predicted_label
+            "predicted_label": predicted_status
         }), 201
 
     except Exception as e:
+        db.session.rollback()  # Rollback any failed DB transactions
         return jsonify({'error': str(e)}), 500
 
 @predict_bp.route('/ping', methods=['GET'])
