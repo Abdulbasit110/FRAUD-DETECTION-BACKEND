@@ -32,13 +32,13 @@ FEATURES = [
 ]
 
 # Load StandardScaler if used during training
-SCALER_FILE = os.path.join(os.path.dirname(__file__), '../../scaler.pkl')
-if os.path.exists(SCALER_FILE):
-    scaler = joblib.load(SCALER_FILE)
-    print("✅ Scaler loaded successfully.")
-else:
-    scaler = None
-    print("⚠️ WARNING: Scaler file not found. Prediction may be affected.")
+# SCALER_FILE = os.path.join(os.path.dirname(__file__), '../../scaler.pkl')
+# if os.path.exists(SCALER_FILE):
+#     scaler = joblib.load(SCALER_FILE)
+#     print("✅ Scaler loaded successfully.")
+# else:
+#     scaler = None
+#     print("⚠️ WARNING: Scaler file not found. Prediction may be affected.")
 
 @predict_bp.route('/predict', methods=['POST'])
 def predict():
@@ -90,8 +90,8 @@ def predict():
         features_array = np.array(features).reshape(1, -1)
 
         # Apply scaling if scaler was used during training
-        if scaler:
-            features_array = scaler.transform(features_array)
+        # if scaler:
+        #     features_array = scaler.transform(features_array)
 
         # Predict using the model
         prediction = model.predict(features_array)
