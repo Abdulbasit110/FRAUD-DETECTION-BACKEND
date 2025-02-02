@@ -5,6 +5,7 @@ from .database import db, socketio
 from .routes.transactions import transaction_routes
 from .routes.auth import auth_routes
 from .routes.predict import predict_bp
+from .routes.model_params import model_params_bp
 
 def create_app():
     app = Flask(__name__)
@@ -21,6 +22,7 @@ def create_app():
     app.register_blueprint(transaction_routes, url_prefix="/transactions")
     app.register_blueprint(auth_routes, url_prefix="/auth")
     app.register_blueprint(predict_bp, url_prefix="/model")
+    app.register_blueprint(model_params_bp, url_prefix="/model_params")
 
     # Health check endpoint
     @app.route('/')

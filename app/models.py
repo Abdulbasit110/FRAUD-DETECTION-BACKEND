@@ -1,5 +1,6 @@
 from .database import db
 from sqlalchemy.sql import func
+from datetime import timedelta
 
 
 class User(db.Model):
@@ -72,4 +73,30 @@ class Notification(db.Model):
             "transaction_id": self.transaction_id,
             "created_at": self.created_at,
             "is_read": self.is_read,
+        }
+
+class ModelParams(db.Model):
+    __tablename__ = 'model_params'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    start_date = db.Column(db.DateTime, nullable=False)
+    end_date = db.Column(db.DateTime, nullable=False)
+    spiking_duration = db.Column(db.Interval, nullable=False)
+    accuracy = db.Column(db.Float, nullable=False)
+    precision = db.Column(db.Float, nullable=False)
+    recall = db.Column(db.Float, nullable=False)
+    f1_score = db.Column(db.Float, nullable=False)
+    created_at = db.Column(db.DateTime, default=func.now())
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "start_date": self.start_date.isoformat(),  # Convert datetime to string
+            "end_date": self.end_date.isoformat(),  # Convert datetime to string
+            "spiking_duration": str(self.spiking_duration),  # Convert timedelta to string
+            "accuracy": self.accuracy,
+            "precision": self.precision,
+            "recall": self.recall,
+            "f1_score": self.f1_score,
+            "created_at": self.created_at.isoformat(),  # Convert datetime to string
         }
