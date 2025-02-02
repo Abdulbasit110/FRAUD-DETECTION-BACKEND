@@ -3,9 +3,9 @@ import joblib
 import numpy as np
 import os
 from flask_socketio import emit
-from sklearn.preprocessing import StandardScaler
-from app import db, socketio  # Import socketio from app/__init__.py
-from app.models import Transaction, Notification
+from sqlalchemy.orm.exc import NoResultFound
+from app import db, socketio
+from app.models import Transaction, Notification, User  
 
 # Define a new blueprint for predictions
 predict_bp = Blueprint('predict', __name__)
@@ -31,15 +31,6 @@ FEATURES = [
     "SD Trx Diff", "SD Trx Vol"
 ]
 
-# Load StandardScaler if used during training
-# SCALER_FILE = os.path.join(os.path.dirname(__file__), '../../scaler.pkl')
-# if os.path.exists(SCALER_FILE):
-#     scaler = joblib.load(SCALER_FILE)
-#     print("✅ Scaler loaded successfully.")
-# else:
-#     scaler = None
-#     print("⚠️ WARNING: Scaler file not found. Prediction may be affected.")
-
 @predict_bp.route('/predict', methods=['POST'])
 def predict():
     try:
@@ -50,7 +41,14 @@ def predict():
         # Parse input JSON
         data = request.get_json(force=True)
 
-        # Extract transaction details
+        # Ensure user_id exists in the users table
+        user_id = data.get("user_id")  # Use dynamic user_id if available
+        user = User.query.filter_by(id=user_id).first()
+
+        if not user:
+            return jsonify({'error': f'User with id {user_id} does not exist.'}), 400
+
+        # Create transaction with initial "Pending" status
         transaction = Transaction(
             sending_date=data.get("sending_date"),
             mtn=data.get("mtn"),
@@ -89,10 +87,6 @@ def predict():
         features = [data.get(feature, 0) for feature in FEATURES]  # Default missing features to 0
         features_array = np.array(features).reshape(1, -1)
 
-        # Apply scaling if scaler was used during training
-        # if scaler:
-        #     features_array = scaler.transform(features_array)
-
         # Predict using the model
         prediction = model.predict(features_array)
         predicted_label = int(prediction[0])  # Convert prediction result to integer
@@ -108,7 +102,7 @@ def predict():
 
         # Create notification for the user
         notification = Notification(
-            user_id="123",  # Replace with actual user ID
+            user_id=user.id,  # Ensure a valid user ID is used
             message=f"New transaction added. Predicted category: {predicted_status}",
             transaction_id=transaction.id
         )
