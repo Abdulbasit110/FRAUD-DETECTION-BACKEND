@@ -1,9 +1,11 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify,Response,stream_with_context
 from ..models import Transaction
 from ..database import db
 import pandas as pd
 import os
+import json
 from sqlalchemy import func
+from datetime import datetime, date
 
 transaction_routes = Blueprint("transactions", __name__)
 
@@ -79,6 +81,7 @@ def get_all_transactions():
         limit = request.args.get('limit', default=10, type=int)  # Default to 10 records if no argument is provided
         
         # Query the database and limit the results
+        # transactions = Transaction.query.all()
         transactions = Transaction.query.limit(limit).all()
         
         # Serialize the results
@@ -88,6 +91,44 @@ def get_all_transactions():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
+# GET: Fetch paginated transactions
+@transaction_routes.route("/all_page", methods=["GET"])
+def get_all_page_transactions():
+    try:
+        # Get pagination parameters
+        page = request.args.get('page', default=1, type=int)  # Default to page 1
+        per_page = request.args.get('per_page', default=100, type=int)  # Default 100 records per page
+        
+        # Query the database with pagination
+        transactions = Transaction.query.paginate(page=page, per_page=per_page, error_out=False)
+        
+        # Serialize results
+        result = [transaction.to_dict() for transaction in transactions.items]
+        
+        return jsonify({
+            "total": transactions.total,
+            "page": transactions.page,
+            "per_page": transactions.per_page,
+            "transactions": result
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+def json_serial(obj):
+    """JSON serializer for objects not serializable by default"""
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    raise TypeError(f"Type {type(obj)} not serializable")
+
+@transaction_routes.route("/all_stream", methods=["GET"])
+def stream_transactions():
+    def generate():
+        query = Transaction.query.yield_per(500)  # Fetch 500 rows at a time
+        for transaction in query:
+            yield json.dumps(transaction.to_dict(), default=json_serial) + "\n"
+    
+    return Response(stream_with_context(generate()), content_type="application/json")
+
 # GET : transaction by id
 @transaction_routes.route("/<int:transaction_id>", methods=["GET"])
 def get_transaction_by_id(transaction_id):
