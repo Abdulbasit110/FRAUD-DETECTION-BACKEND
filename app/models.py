@@ -9,6 +9,7 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     role = db.Column(db.String(50), nullable=False, default="user")  # Role field with a default value
+    is_approved = db.Column(db.Boolean, nullable=False, default=False)  # Approval status with default False
     created_at = db.Column(db.DateTime, default=func.now())
 
     def to_dict(self):
