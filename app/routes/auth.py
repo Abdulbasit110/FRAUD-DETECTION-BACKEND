@@ -4,8 +4,49 @@ from sqlalchemy.exc import IntegrityError
 from ..models import User
 from ..database import db
 import uuid
+import jwt
+import datetime
+from functools import wraps
+import os
 
 auth_routes = Blueprint("auth", __name__)
+
+# JWT token generation
+def generate_reset_token(user_id):
+    return jwt.encode(
+        {
+            'user_id': user_id,
+            'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)
+        },
+        os.getenv('JWT_SECRET_KEY', 'your-secret-key'),
+        algorithm='HS256'
+    )
+
+# Token verification decorator
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.headers.get('Authorization')
+        if not token:
+            return jsonify({'error': 'Token is missing'}), 401
+        
+        # Handle 'Bearer' prefix if present
+        if token.startswith('Bearer '):
+            token = token.split(' ')[1]
+            
+        try:
+            data = jwt.decode(token, os.getenv('JWT_SECRET_KEY', 'your-secret-key'), algorithms=['HS256'])
+            current_user = User.query.get(data['user_id'])
+            if not current_user:
+                return jsonify({'error': 'Invalid token'}), 401
+        except jwt.ExpiredSignatureError:
+            return jsonify({'error': 'Token has expired'}), 401
+        except jwt.InvalidTokenError as e:
+            return jsonify({'error': f'Invalid token: {str(e)}'}), 401
+        except Exception as e:
+            return jsonify({'error': f'Token error: {str(e)}'}), 401
+        return f(current_user, *args, **kwargs)
+    return decorated
 
 # ---------------- SIGNUP ----------------
 @auth_routes.route("/signup", methods=["POST"])
@@ -29,7 +70,9 @@ def login():
     data = request.json
     user = User.query.filter_by(email=data["email"]).first()
     if user and check_password_hash(user.password, data["password"]):
-        return jsonify({"message": "Login successful", "user_id": user.id, "role": user.role}), 200
+        if not user.is_approved:
+            return jsonify({"error": "User is not approved yet"}), 403
+        return jsonify({"message": "Login successful", "user_id": user.id, "role": user.role, "is_approved": user.is_approved}), 200
     return jsonify({"error": "Invalid credentials"}), 401
 
 
@@ -38,24 +81,39 @@ def login():
 def forgot_password():
     data = request.json
     user = User.query.filter_by(email=data["email"]).first()
-    if user:
-        new_password = str(uuid.uuid4())[:8]
-        user.password = generate_password_hash(new_password)
-        db.session.commit()
-        return jsonify({"message": f"New password is {new_password}"}), 200
-    return jsonify({"error": "Email not found"}), 404
+    
+    if not user:
+        return jsonify({"error": "Email not found"}), 404
+    
+    # Generate reset token
+    reset_token = generate_reset_token(user.id)
+    
+    # In a real application, you would send this token via email
+    # For now, we'll return it in the response
+    return jsonify({
+        "message": "Password reset link has been sent to your email",
+        "reset_token": reset_token  # In production, remove this line and send email instead
+    }), 200
 
 
 # ---------------- RESET PASSWORD ----------------
 @auth_routes.route("/reset-password", methods=["POST"])
-def reset_password():
+@token_required
+def reset_password(current_user):
     data = request.json
-    user = User.query.filter_by(email=data["email"]).first()
-    if user and check_password_hash(user.password, data["old_password"]):
-        user.password = generate_password_hash(data["new_password"])
-        db.session.commit()
-        return jsonify({"message": "Password reset successful"}), 200
-    return jsonify({"error": "Invalid credentials"}), 401
+    
+    if not data.get("new_password"):
+        return jsonify({"error": "New password is required"}), 400
+    
+    # Validate password strength (add your password requirements)
+    if len(data["new_password"]) < 8:
+        return jsonify({"error": "Password must be at least 8 characters long"}), 400
+    
+    # Update password
+    current_user.password = generate_password_hash(data["new_password"])
+    db.session.commit()
+    
+    return jsonify({"message": "Password has been reset successfully"}), 200
 
 
 # ---------------- MAKE USER ADMIN ----------------
@@ -76,7 +134,7 @@ def make_admin():
 @auth_routes.route("/users", methods=["GET"])
 def get_all_users():
     users = User.query.all()
-    result = [{"id": user.id, "email": user.email, "role": user.role, "created_at": user.created_at} for user in users]
+    result = [{"id": user.id, "email": user.email, "role": user.role, "created_at": user.created_at, "is_approved": user.is_approved} for user in users]
     return jsonify(result), 200
 
 
@@ -119,3 +177,25 @@ def delete_user():
     db.session.delete(user)
     db.session.commit()
     return jsonify({"message": f"User {data['email']} deleted successfully"}), 200
+
+
+# ---------------- APPROVE USER ----------------
+@auth_routes.route("/approve-user/<int:user_id>", methods=["PUT"])
+def approve_user(user_id):
+    try:
+        user = User.query.get(user_id)
+        
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+
+        user.is_approved = True
+        db.session.commit()
+        
+        return jsonify({
+            "message": f"User {user.email} approved successfully",
+            "user": user.to_dict()
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
