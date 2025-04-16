@@ -233,6 +233,54 @@ def get_transaction_stats():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
+@transaction_routes.route("/create", methods=["POST"])
+def create_transaction():
+    try:
+        data = request.get_json()
+
+        # Create new transaction
+        transaction = Transaction(
+            sending_date=data.get("sending_date"),
+            mtn=data.get("mtn"),
+            sender_id=data.get("sender_id"),
+            sender_legal_name=data.get("sender_legal_name"), 
+            channel=data.get("channel"),
+            payer_rep_code=data.get("payer_rep_code"),
+            sender_country=data.get("sender_country"),
+            sender_status=data.get("sender_status"),
+            sender_date_of_birth=data.get("sender_date_of_birth"),
+            sender_email=data.get("sender_email"),
+            sender_mobile=data.get("sender_mobile"),
+            sender_phone=data.get("sender_phone"),
+            beneficiary_client_id=data.get("beneficiary_client_id"),
+            beneficiary_name=data.get("beneficiary_name"),
+            beneficiary_first_name=data.get("beneficiary_first_name"),
+            beneficiary_country=data.get("beneficiary_country"),
+            beneficiary_email=data.get("beneficiary_email"),
+            beneficiary_mobile=data.get("beneficiary_mobile"),
+            beneficiary_phone=data.get("beneficiary_phone"),
+            sending_country=data.get("sending_country"),
+            payout_country=data.get("payout_country"),
+            status=data.get("status", "Pending"),
+            total_sale=data.get("total_sale"),
+            sending_currency=data.get("sending_currency"),
+            payment_method=data.get("payment_method"),
+            compliance_release_date=data.get("compliance_release_date"),
+            sender_status_detail=data.get("sender_status_detail")
+        )
+
+        db.session.add(transaction)
+        db.session.commit()
+
+        return jsonify({
+            "message": "Transaction created successfully",
+            "transaction": transaction.to_dict()
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+    
 # Function to clean transaction data
 def clean_transaction_data(df):
     cleaned_data = []
