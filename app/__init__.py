@@ -1,5 +1,6 @@
 from flask import Flask
 from flask_migrate import Migrate
+from flask_cors import CORS
 from .config import Config
 from .database import db, socketio
 from .routes.transactions import transaction_routes
@@ -10,13 +11,16 @@ from .routes.model_params import model_params_bp
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
+    
+    # Enable CORS for all routes
+    CORS(app, resources={r"/*": {"origins": "*"}})
 
     # Initialize database and migrations
     db.init_app(app)
     migrate = Migrate(app, db)
 
     # Initialize SocketIO with Flask app
-    socketio.init_app(app)
+    socketio.init_app(app, cors_allowed_origins="*")
 
     # Register blueprints
     app.register_blueprint(transaction_routes, url_prefix="/transactions")

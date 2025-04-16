@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.exc import IntegrityError
 from ..models import User
@@ -18,7 +18,7 @@ def generate_reset_token(user_id):
             'user_id': user_id,
             'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)
         },
-        os.getenv('JWT_SECRET_KEY', 'your-secret-key'),
+        current_app.config['JWT_SECRET_KEY'],
         algorithm='HS256'
     )
 
@@ -35,7 +35,7 @@ def token_required(f):
             token = token.split(' ')[1]
             
         try:
-            data = jwt.decode(token, os.getenv('JWT_SECRET_KEY', 'your-secret-key'), algorithms=['HS256'])
+            data = jwt.decode(token, current_app.config['JWT_SECRET_KEY'], algorithms=['HS256'])
             current_user = User.query.get(data['user_id'])
             if not current_user:
                 return jsonify({'error': 'Invalid token'}), 401
@@ -72,7 +72,27 @@ def login():
     if user and check_password_hash(user.password, data["password"]):
         if not user.is_approved:
             return jsonify({"error": "User is not approved yet"}), 403
-        return jsonify({"message": "Login successful", "user_id": user.id, "role": user.role, "is_approved": user.is_approved}), 200
+        
+        # Generate JWT token
+        token = jwt.encode(
+            {
+                'user_id': user.id,
+                'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)
+            },
+            current_app.config['JWT_SECRET_KEY'],
+            algorithm='HS256'
+        )
+        
+        return jsonify({
+            "message": "Login successful", 
+            "token": token,
+            "user": {
+                "id": user.id,
+                "role": user.role,
+                "is_approved": user.is_approved,
+                "email": user.email
+            }
+        }), 200
     return jsonify({"error": "Invalid credentials"}), 401
 
 
