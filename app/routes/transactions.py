@@ -223,11 +223,21 @@ def get_transaction_stats():
         total_transactions = Transaction.query.count()
         genuine_transactions = Transaction.query.filter(Transaction.sender_status_detail == "Genuine").count()
         suspicious_transactions = Transaction.query.filter(Transaction.sender_status_detail == "Suspicious").count()
+        
+        # Calculate total transaction volume
+        total_volume = db.session.query(func.sum(Transaction.total_sale)).scalar() or 0
+        genuine_volume = db.session.query(func.sum(Transaction.total_sale)).filter(
+            Transaction.sender_status_detail == "Genuine").scalar() or 0
+        suspicious_volume = db.session.query(func.sum(Transaction.total_sale)).filter(
+            Transaction.sender_status_detail == "Suspicious").scalar() or 0
 
         return jsonify({
             "total_transactions": total_transactions,
             "genuine_transactions": genuine_transactions,
-            "suspicious_transactions": suspicious_transactions
+            "suspicious_transactions": suspicious_transactions,
+            "total_volume": total_volume,
+            "genuine_volume": genuine_volume,
+            "suspicious_volume": suspicious_volume
         }), 200
 
     except Exception as e:
