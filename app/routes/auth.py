@@ -8,8 +8,15 @@ import jwt
 import datetime
 from functools import wraps
 import os
+import random
+import string
+from ..utils.email_service import send_verification_code
 
 auth_routes = Blueprint("auth", __name__)
+
+# Generate random verification code
+def generate_verification_code(length=6):
+    return ''.join(random.choices(string.digits, k=length))
 
 # JWT token generation
 def generate_reset_token(user_id):
@@ -105,16 +112,55 @@ def forgot_password():
     if not user:
         return jsonify({"error": "Email not found"}), 404
     
-    # Generate reset token
-    reset_token = generate_reset_token(user.id)
+    # Generate verification code
+    verification_code = generate_verification_code()
+    user.verification_code = verification_code
+    user.verification_code_expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=15)
+    db.session.commit()
     
-    # In a real application, you would send this token via email
-    # For now, we'll return it in the response
+    # Send verification code via email
+    email_sent = send_verification_code(user.email, verification_code)
+    
+    if not email_sent:
+        # If email fails to send, we still have the code in the database
+        # In a production app, you might want to handle this differently
+        return jsonify({
+            "message": "Failed to send verification code email. Please try again.",
+            "code": verification_code  # Only include this for development/testing!
+        }), 500
+    
     return jsonify({
-        "message": "Password reset link has been sent to your email",
-        "reset_token": reset_token  # In production, remove this line and send email instead
+        "message": "Verification code has been sent to your email"
     }), 200
 
+# ---------------- VERIFY CODE ----------------
+@auth_routes.route("/verify-code", methods=["POST"])
+def verify_code():
+    data = request.json
+    if not data.get("email") or not data.get("code"):
+        return jsonify({"error": "Email and verification code are required"}), 400
+        
+    user = User.query.filter_by(email=data["email"]).first()
+    
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+        
+    if not user.verification_code:
+        return jsonify({"error": "No verification code requested"}), 400
+        
+    if user.verification_code_expires_at < datetime.datetime.utcnow():
+        return jsonify({"error": "Verification code has expired"}), 400
+        
+    if user.verification_code != data["code"]:
+        return jsonify({"error": "Invalid verification code"}), 400
+    
+    # Generate reset token after successful verification
+    reset_token = generate_reset_token(user.id)
+    
+    return jsonify({
+        "message": "Code verified successfully",
+        "reset_token": reset_token
+    }), 200
 
 # ---------------- RESET PASSWORD ----------------
 @auth_routes.route("/reset-password", methods=["POST"])
@@ -131,6 +177,9 @@ def reset_password(current_user):
     
     # Update password
     current_user.password = generate_password_hash(data["new_password"])
+    # Clear verification code after password reset
+    current_user.verification_code = None
+    current_user.verification_code_expires_at = None
     db.session.commit()
     
     return jsonify({"message": "Password has been reset successfully"}), 200
