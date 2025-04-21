@@ -6,7 +6,7 @@ import pandas as pd
 from flask_socketio import emit
 from sqlalchemy.orm.exc import NoResultFound
 from app import db, socketio
-from app.models import Transaction, Notification, User
+from app.models import Transaction, Notification, User, SenderFeatures
 from datetime import datetime, timedelta
 from sqlalchemy import func
 
@@ -38,6 +38,7 @@ def extract_features_for_sender(sender_id):
     """
     Perform feature engineering on transactions for a specific sender_id
     Returns a dictionary of features needed for model prediction
+    Also stores the features in the database for future use
     """
     # Get all transactions for this sender
     transactions = Transaction.query.filter_by(sender_id=sender_id).all()
@@ -142,6 +143,76 @@ def extract_features_for_sender(sender_id):
         features["SD Trx Vol"] = df['total_sale'].std() if len(df) > 1 else 0
     else:
         features["SD Trx Vol"] = 0
+    
+    # Store the features in the database
+    try:
+        print(f"[DEBUG] Storing features for sender ID: {sender_id}")
+        
+        # Convert NumPy values to native Python types
+        db_features = {}
+        for key, value in features.items():
+            # Check if it's a NumPy type and convert to Python native type
+            if hasattr(value, 'item'):
+                db_features[key] = value.item()  # Convert NumPy types to native Python types
+            else:
+                db_features[key] = value
+        
+        # Check if we already have features for this sender
+        existing_features = SenderFeatures.query.filter_by(sender_id=sender_id).first()
+        
+        if existing_features:
+            # Update existing features
+            print(f"[DEBUG] Updating existing features for sender ID: {sender_id}")
+            existing_features.total_trx = db_features["Total Trx"]
+            existing_features.total_beneficiaries = db_features["Total Beneficiaries"]
+            existing_features.total_paid_out_trx = db_features["Total Paid out Trx"]
+            existing_features.avg_top_05_daily_trx = db_features["Avg Top 05 Daily Trx"]
+            existing_features.sd_of_top_5_trx_m = db_features["SD of Top 5 Trx_M"]
+            existing_features.sd_of_top_5_trx_n = db_features["SD of Top 5 Trx_N"]
+            existing_features.avg_top_volumes = db_features["Avg top Volumes"]
+            existing_features.std_dev_vol_m = db_features["Std Dev Vol_M"]
+            existing_features.std_dev_vol_n = db_features["Std Dev Vol_N"]
+            existing_features.date_differences_max = db_features["Date Differences Max"]
+            existing_features.date_differences_avg = db_features["Date Differences Avg"]
+            existing_features.length_of_seq = db_features["Length of Seq"]
+            existing_features.avg_top_05_atv = db_features["Avg Top 05 ATV"]
+            existing_features.avg_bottom_atv = db_features["Avg Bottom ATV"]
+            existing_features.std_dev_atv = db_features["Std Dev ATV"]
+            existing_features.paid_percentage = db_features["Paid %"]
+            existing_features.sd_trx_diff = db_features["SD Trx Diff"]
+            existing_features.sd_trx_vol = db_features["SD Trx Vol"]
+        else:
+            # Create new features entry
+            print(f"[DEBUG] Creating new features entry for sender ID: {sender_id}")
+            sender_features = SenderFeatures(
+                sender_id=sender_id,
+                total_trx=db_features["Total Trx"],
+                total_beneficiaries=db_features["Total Beneficiaries"],
+                total_paid_out_trx=db_features["Total Paid out Trx"],
+                avg_top_05_daily_trx=db_features["Avg Top 05 Daily Trx"],
+                sd_of_top_5_trx_m=db_features["SD of Top 5 Trx_M"],
+                sd_of_top_5_trx_n=db_features["SD of Top 5 Trx_N"],
+                avg_top_volumes=db_features["Avg top Volumes"],
+                std_dev_vol_m=db_features["Std Dev Vol_M"],
+                std_dev_vol_n=db_features["Std Dev Vol_N"],
+                date_differences_max=db_features["Date Differences Max"],
+                date_differences_avg=db_features["Date Differences Avg"],
+                length_of_seq=db_features["Length of Seq"],
+                avg_top_05_atv=db_features["Avg Top 05 ATV"],
+                avg_bottom_atv=db_features["Avg Bottom ATV"],
+                std_dev_atv=db_features["Std Dev ATV"],
+                paid_percentage=db_features["Paid %"],
+                sd_trx_diff=db_features["SD Trx Diff"],
+                sd_trx_vol=db_features["SD Trx Vol"]
+            )
+            db.session.add(sender_features)
+        
+        # Commit the changes
+        db.session.commit()
+        print(f"[DEBUG] Features successfully stored for sender ID: {sender_id}")
+    except Exception as e:
+        print(f"[ERROR] Failed to store features in the database: {str(e)}")
+        db.session.rollback()
     
     return features
 
@@ -302,4 +373,43 @@ def ping():
             return jsonify({'error': 'Model not found'}), 500
         return jsonify({'status': 'Model loaded', 'feature_importance': model.feature_importances_.tolist()}), 200
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@predict_bp.route('/features', methods=['GET'])
+def get_all_features():
+    """
+    Get all sender features from the database
+    Returns a list of all features for all senders
+    """
+    try:
+        features = SenderFeatures.query.all()
+        return jsonify({
+            "message": "Features retrieved successfully",
+            "count": len(features),
+            "features": [feature.to_dict() for feature in features]
+        }), 200
+    except Exception as e:
+        print(f"[ERROR] Exception in retrieving features: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@predict_bp.route('/features/<sender_id>', methods=['GET'])
+def get_sender_features(sender_id):
+    """
+    Get features for a specific sender from the database
+    Returns the features for the requested sender ID
+    """
+    try:
+        feature = SenderFeatures.query.filter_by(sender_id=sender_id).first()
+        if not feature:
+            return jsonify({
+                "message": f"No features found for sender ID: {sender_id}",
+                "features": None
+            }), 404
+        
+        return jsonify({
+            "message": "Features retrieved successfully",
+            "features": feature.to_dict()
+        }), 200
+    except Exception as e:
+        print(f"[ERROR] Exception in retrieving features for sender {sender_id}: {str(e)}")
         return jsonify({'error': str(e)}), 500

@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, current_app
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.exc import IntegrityError
-from ..models import User
+from ..models import User, Notification
 from ..database import db
 import uuid
 import jwt
@@ -62,9 +62,9 @@ def signup():
     try:
         hashed_password = generate_password_hash(data["password"])
         user = User(email=data["email"], password=hashed_password,
-                    first_name=data["firstName"],
-                    last_name=data["lastName"]
-            )
+                first_name=data["firstName"],
+                last_name=data["lastName"]
+        )
         db.session.add(user)
         db.session.commit()
         return jsonify({"message": "User registered successfully"}), 201
@@ -121,7 +121,8 @@ def forgot_password():
     user.verification_code_expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=15)
     db.session.commit()
     
-    # Send verification code via email
+    # In a real application, you would send this verification code via email
+    # For now, we'll return it in the response for testing purposes
     email_sent = send_verification_code(user.email, verification_code)
     
     if not email_sent:
@@ -131,9 +132,9 @@ def forgot_password():
             "message": "Failed to send verification code email. Please try again.",
             "code": verification_code  # Only include this for development/testing!
         }), 500
-    
     return jsonify({
-        "message": "Verification code has been sent to your email"
+        "message": "Verification code has been sent to your email",
+        "code": verification_code  # In production, remove this line and send email instead
     }), 200
 
 # ---------------- VERIFY CODE ----------------
@@ -194,7 +195,6 @@ def reset_password(current_user):
 @auth_routes.route("/make-admin", methods=["POST"])
 def make_admin():
     data = request.json
-    print(type(data))
     user = User.query.filter_by(email=data["email"]).first()
     
     if not user:
@@ -274,3 +274,16 @@ def approve_user(user_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
+    
+
+# ---------------- GET ALL NOTIFICATIONS----------------
+@auth_routes.route("/notifications", methods=["GET"])
+def get_notifications():
+    try:
+        notifications = Notification.query.all()
+        result = [{"id": notification.id, "user_id": notification.user_id, "message": notification.message} for notification in notifications]
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+
