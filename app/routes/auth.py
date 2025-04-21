@@ -61,7 +61,10 @@ def signup():
     data = request.json
     try:
         hashed_password = generate_password_hash(data["password"])
-        user = User(email=data["email"], password=hashed_password)
+        user = User(email=data["email"], password=hashed_password,
+                    first_name=data["firstName"],
+                    last_name=data["lastName"]
+            )
         db.session.add(user)
         db.session.commit()
         return jsonify({"message": "User registered successfully"}), 201
@@ -191,6 +194,7 @@ def reset_password(current_user):
 @auth_routes.route("/make-admin", methods=["POST"])
 def make_admin():
     data = request.json
+    print(type(data))
     user = User.query.filter_by(email=data["email"]).first()
     
     if not user:
@@ -205,7 +209,7 @@ def make_admin():
 @auth_routes.route("/users", methods=["GET"])
 def get_all_users():
     users = User.query.all()
-    result = [{"id": user.id, "email": user.email, "role": user.role, "created_at": user.created_at, "is_approved": user.is_approved} for user in users]
+    result = [{"id": user.id, "email": user.email, "role": user.role, "created_at": user.created_at, "is_approved": user.is_approved, "first_name": user.first_name, "last_name": user.last_name} for user in users]
     return jsonify(result), 200
 
 
