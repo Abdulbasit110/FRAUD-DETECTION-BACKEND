@@ -336,7 +336,12 @@ def predict():
         notification = Notification(
             user_id=user_id,  # Use user_id directly without validation
             message=f"New transaction added. Predicted category: {predicted_status} (Confidence: {confidence:.1f}%)",
-            transaction_id=transaction.id
+            transaction_id=transaction.id,
+            sender_name=transaction.sender_legal_name,
+            mobile_number=transaction.sender_mobile,
+            amount=transaction.total_sale,
+            status=predicted_status,
+            high_alert_date=datetime.now() if predicted_status == "Suspicious" else None
         )
         db.session.add(notification)
         db.session.commit()
@@ -346,6 +351,11 @@ def predict():
         emit("new_transaction", {
             "message": f"New transaction added. Predicted category: {predicted_status}",
             "transaction_id": transaction.id,
+            "sender_name": transaction.sender_legal_name,
+            "mobile_number": transaction.sender_mobile,
+            "amount": transaction.total_sale,
+            "status": predicted_status,
+            "high_alert_date": datetime.now().isoformat() if predicted_status == "Suspicious" else None,
             "confidence": f"{confidence:.1f}%"
         }, broadcast=True, namespace="/")
         

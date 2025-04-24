@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify,Response,stream_with_context
-from ..models import Transaction
+from ..models import Transaction, Notification
 from ..database import db
 import pandas as pd
 import os
@@ -333,4 +333,68 @@ def clean_transaction_data(df):
             skipped_rows.append({"index": index, "error": str(e)})
 
     return cleaned_data, skipped_rows
+
+@transaction_routes.route("/notifications", methods=["GET"])
+def get_all_notifications():
+    try:
+        # Get pagination parameters
+        page = request.args.get('page', default=1, type=int)  # Default to page 1
+        per_page = request.args.get('per_page', default=20, type=int)  # Default 20 records per page
+        user_id = request.args.get('user_id')  # Optional user_id filter
+        
+        # Base query
+        query = Notification.query
+        
+        # Apply user_id filter if provided
+        if user_id:
+            query = query.filter_by(user_id=user_id)
+            
+        # Order by creation date, newest first
+        query = query.order_by(Notification.created_at.desc())
+        
+        # Apply pagination
+        notifications = query.paginate(page=page, per_page=per_page, error_out=False)
+        
+        # Serialize results
+        result = [notification.to_dict() for notification in notifications.items]
+        
+        return jsonify({
+            "total": notifications.total,
+            "page": notifications.page,
+            "per_page": notifications.per_page,
+            "notifications": result
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@transaction_routes.route("/notifications/<int:notification_id>", methods=["GET"])
+def get_notification_by_id(notification_id):
+    try:
+        # Fetch the notification by ID
+        notification = Notification.query.get(notification_id)
+        if not notification:
+            return jsonify({"error": "Notification not found"}), 404
+
+        # Use the to_dict method for serialization
+        result = notification.to_dict()
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@transaction_routes.route("/notifications/mark-read/<int:notification_id>", methods=["PUT"])
+def mark_notification_read(notification_id):
+    try:
+        # Fetch the notification by ID
+        notification = Notification.query.get(notification_id)
+        if not notification:
+            return jsonify({"error": "Notification not found"}), 404
+
+        # Mark as read
+        notification.is_read = True
+        db.session.commit()
+
+        return jsonify({"message": "Notification marked as read"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
 
