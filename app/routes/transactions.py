@@ -147,17 +147,42 @@ def get_transaction_by_id(transaction_id):
 @transaction_routes.route("/by-date", methods=["GET"])
 def get_transactions_by_date():
     try:
+        # Get date range parameters
         start_date = request.args.get("start_date")
         end_date = request.args.get("end_date")
 
         if not start_date or not end_date:
             return jsonify({"error": "Start date and end date are required"}), 400
 
-        transactions = Transaction.query.filter(
+        # Get pagination parameters
+        page = request.args.get('page', default=1, type=int)  # Default to page 1
+        per_page = request.args.get('per_page', default=50, type=int)  # Default 50 records per page
+        
+        # Build the query with date filter
+        query = Transaction.query.filter(
             Transaction.sending_date.between(start_date, end_date)
-        ).all()
-
-        return jsonify([t.to_dict() for t in transactions]), 200
+        )
+        
+        # Add sorting for consistent pagination (sort by date and then id)
+        query = query.order_by(Transaction.sending_date.desc(), Transaction.id.desc())
+        
+        # Apply pagination
+        paginated_transactions = query.paginate(page=page, per_page=per_page, error_out=False)
+        
+        # Get total count for metadata
+        total_count = paginated_transactions.total
+        
+        # Serialize the paginated results
+        results = [t.to_dict() for t in paginated_transactions.items]
+        
+        # Return paginated response with metadata
+        return jsonify({
+            "total": total_count,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": paginated_transactions.pages,
+            "transactions": results
+        }), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -170,9 +195,30 @@ def get_transactions_by_sender():
         if not sender_id:
             return jsonify({"error": "Sender ID is required"}), 400
 
-        transactions = Transaction.query.filter_by(sender_id=sender_id).all()
-
-        return jsonify([t.to_dict() for t in transactions]), 200
+        # Get pagination parameters
+        page = request.args.get('page', default=1, type=int)  # Default to page 1
+        per_page = request.args.get('per_page', default=50, type=int)  # Default 50 records per page
+        
+        # Build the query with sender filter
+        query = Transaction.query.filter_by(sender_id=sender_id)
+        
+        # Add sorting for consistent pagination
+        query = query.order_by(Transaction.sending_date.desc(), Transaction.id.desc())
+        
+        # Apply pagination
+        paginated_transactions = query.paginate(page=page, per_page=per_page, error_out=False)
+        
+        # Serialize the paginated results
+        results = [t.to_dict() for t in paginated_transactions.items]
+        
+        # Return paginated response with metadata
+        return jsonify({
+            "total": paginated_transactions.total,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": paginated_transactions.pages,
+            "transactions": results
+        }), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -185,9 +231,30 @@ def get_transactions_by_beneficiary():
         if not beneficiary_id:
             return jsonify({"error": "Beneficiary ID is required"}), 400
 
-        transactions = Transaction.query.filter_by(beneficiary_client_id=beneficiary_id).all()
-
-        return jsonify([t.to_dict() for t in transactions]), 200
+        # Get pagination parameters
+        page = request.args.get('page', default=1, type=int)  # Default to page 1
+        per_page = request.args.get('per_page', default=50, type=int)  # Default 50 records per page
+        
+        # Build the query with beneficiary filter
+        query = Transaction.query.filter_by(beneficiary_client_id=beneficiary_id)
+        
+        # Add sorting for consistent pagination
+        query = query.order_by(Transaction.sending_date.desc(), Transaction.id.desc())
+        
+        # Apply pagination
+        paginated_transactions = query.paginate(page=page, per_page=per_page, error_out=False)
+        
+        # Serialize the paginated results
+        results = [t.to_dict() for t in paginated_transactions.items]
+        
+        # Return paginated response with metadata
+        return jsonify({
+            "total": paginated_transactions.total,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": paginated_transactions.pages,
+            "transactions": results
+        }), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -210,13 +277,34 @@ def get_transactions_by_status():
         if not status:
             return jsonify({"error": "Status is required"}), 400
 
-        transactions = Transaction.query.filter_by(status=status).all()
-
-        return jsonify([t.to_dict() for t in transactions]), 200
+        # Get pagination parameters
+        page = request.args.get('page', default=1, type=int)  # Default to page 1
+        per_page = request.args.get('per_page', default=50, type=int)  # Default 50 records per page
+        
+        # Build the query with status filter
+        query = Transaction.query.filter_by(status=status)
+        
+        # Add sorting for consistent pagination
+        query = query.order_by(Transaction.sending_date.desc(), Transaction.id.desc())
+        
+        # Apply pagination
+        paginated_transactions = query.paginate(page=page, per_page=per_page, error_out=False)
+        
+        # Serialize the paginated results
+        results = [t.to_dict() for t in paginated_transactions.items]
+        
+        # Return paginated response with metadata
+        return jsonify({
+            "total": paginated_transactions.total,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": paginated_transactions.pages,
+            "transactions": results
+        }), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
+    
 @transaction_routes.route("/stats", methods=["GET"])
 def get_transaction_stats():
     try:
@@ -242,7 +330,7 @@ def get_transaction_stats():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    
+
 @transaction_routes.route("/create", methods=["POST"])
 def create_transaction():
     try:
