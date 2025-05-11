@@ -14,3 +14,4 @@ psycopg2-binary
 gunicorn
 eventlet
 waitress
+apscheduler==3.10.1

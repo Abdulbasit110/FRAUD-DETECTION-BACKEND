@@ -7,6 +7,7 @@ from .routes.transactions import transaction_routes
 from .routes.auth import auth_routes
 from .routes.predict import predict_bp
 from .routes.model_params import model_params_bp
+from .utils.scheduler import init_scheduler
 import os
 import logging
 
@@ -41,6 +42,11 @@ def create_app(config_name='default'):
     # Create database tables
     with app.app_context():
         db.create_all()
+    
+    # Initialize the scheduler for automated test transactions
+    if app.config.get('ENV') != 'production':
+        init_scheduler(app)
+        app.logger.info("Automated test transaction scheduler initialized")
 
     # Health check endpoint
     @app.route('/')
