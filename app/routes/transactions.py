@@ -430,12 +430,26 @@ def get_all_notifications():
         per_page = request.args.get('per_page', default=20, type=int)  # Default 20 records per page
         user_id = request.args.get('user_id')  # Optional user_id filter
         
+        # Get new filtering parameters
+        hours = request.args.get('hours', type=int)  # Filter by hours from now
+        status = request.args.get('status')  # Filter by status (Fraudulent, Suspicious)
+        
         # Base query
         query = Notification.query
         
         # Apply user_id filter if provided
         if user_id:
             query = query.filter_by(user_id=user_id)
+        
+        # Apply status filter if provided
+        if status:
+            query = query.filter_by(status=status)
+        
+        # Apply time filter if provided (hours from now)
+        if hours:
+            from datetime import datetime, timedelta
+            cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+            query = query.filter(Notification.created_at >= cutoff_time)
             
         # Order by creation date, newest first
         query = query.order_by(Notification.created_at.desc())
@@ -448,6 +462,7 @@ def get_all_notifications():
         
         return jsonify({
             "total": notifications.total,
+            "totalPages": (notifications.total + per_page - 1) // per_page,  # Calculate total pages
             "page": notifications.page,
             "per_page": notifications.per_page,
             "notifications": result

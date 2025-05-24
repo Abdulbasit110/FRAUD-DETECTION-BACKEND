@@ -390,12 +390,35 @@ def get_all_features():
     """
     Get all sender features from the database
     Returns a list of all features for all senders
+    Supports filtering by time range (e.g., last 24 hours)
     """
     try:
-        features = SenderFeatures.query.all()
+        # Get time filter parameter (in hours, default to None for all features)
+        hours = request.args.get('hours', type=int)
+        
+        # Start with base query
+        query = SenderFeatures.query
+        
+        # Apply time filter if specified
+        if hours is not None:
+            from datetime import datetime, timedelta
+            cutoff_time = datetime.now() - timedelta(hours=hours)
+            # Filter by either created_at or updated_at within the time range
+            query = query.filter(
+                db.or_(
+                    SenderFeatures.created_at >= cutoff_time,
+                    SenderFeatures.updated_at >= cutoff_time
+                )
+            )
+        
+        # Order by most recent first
+        query = query.order_by(SenderFeatures.updated_at.desc(), SenderFeatures.created_at.desc())
+        
+        features = query.all()
         return jsonify({
             "message": "Features retrieved successfully",
             "count": len(features),
+            "time_filter_hours": hours,
             "features": [feature.to_dict() for feature in features]
         }), 200
     except Exception as e:
