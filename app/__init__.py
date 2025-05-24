@@ -7,7 +7,8 @@ from .routes.transactions import transaction_routes
 from .routes.auth import auth_routes
 from .routes.predict import predict_bp
 from .routes.model_params import model_params_bp
-from .utils.scheduler import init_scheduler
+# DISABLED: Removed scheduler import since we're not using automated test transactions
+# from .utils.scheduler import init_scheduler
 import os
 import logging
 
@@ -37,16 +38,15 @@ def create_app(config_name='default'):
     app.register_blueprint(transaction_routes, url_prefix="/transactions")
     app.register_blueprint(auth_routes, url_prefix="/auth")
     app.register_blueprint(predict_bp, url_prefix="/model")
-    app.register_blueprint(model_params_bp, url_prefix="/model_params")
-
-    # Create database tables
+    app.register_blueprint(model_params_bp, url_prefix="/model_params")    # Create database tables
     with app.app_context():
         db.create_all()
     
     # Initialize the scheduler for automated test transactions
-    if app.config.get('ENV') != 'production':
-        init_scheduler(app)
-        app.logger.info("Automated test transaction scheduler initialized")
+    # DISABLED: Commenting out the scheduler to stop automated test transactions
+    # if app.config.get('ENV') != 'production':
+    #     init_scheduler(app)
+    #     app.logger.info("Automated test transaction scheduler initialized")
 
     # Health check endpoint
     @app.route('/')

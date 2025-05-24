@@ -175,12 +175,6 @@ def reset_password(current_user):
     if not data.get("new_password"):
         return jsonify({"error": "New password is required"}), 400
     
-    if not data.get("old_password"):
-        return jsonify({"error": "old password is required"}), 400
-    
-    if not check_password_hash(current_user.password, data["old_password"]):
-        return jsonify({"error": "Invalid old password"}), 400
-    
     # Update password
     current_user.password = generate_password_hash(data["new_password"])
     # Clear verification code after password reset
