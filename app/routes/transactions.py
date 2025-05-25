@@ -312,7 +312,29 @@ def get_transaction_stats():
         genuine_transactions = Transaction.query.filter(Transaction.sender_status_detail == "Genuine").count()
         suspicious_transactions = Transaction.query.filter(Transaction.sender_status_detail == "Suspicious").count()
         
-        # Calculate total transaction volume
+        # Calculate unique customers (using sender_id as primary identifier)
+        total_customers = db.session.query(Transaction.sender_id).distinct().count()
+          # Calculate pure genuine customers (customers with ONLY genuine transactions)
+        genuine_only_customers = db.session.query(Transaction.sender_id).filter(
+            Transaction.sender_status_detail == "Genuine"
+        ).distinct().except_(
+            db.session.query(Transaction.sender_id).filter(
+                Transaction.sender_status_detail == "Suspicious"
+            ).distinct()
+        ).count()
+        
+        # Calculate pure suspicious customers (customers with ONLY suspicious transactions)
+        suspicious_only_customers = db.session.query(Transaction.sender_id).filter(
+            Transaction.sender_status_detail == "Suspicious"
+        ).distinct().except_(
+            db.session.query(Transaction.sender_id).filter(
+                Transaction.sender_status_detail == "Genuine"
+            ).distinct()
+        ).count()
+        
+        # Calculate mixed customers (customers with both genuine and suspicious transactions)
+        mixed_customers = total_customers - genuine_only_customers - suspicious_only_customers
+          # Calculate total transaction volume
         total_volume = db.session.query(func.sum(Transaction.total_sale)).scalar() or 0
         genuine_volume = db.session.query(func.sum(Transaction.total_sale)).filter(
             Transaction.sender_status_detail == "Genuine").scalar() or 0
@@ -321,8 +343,12 @@ def get_transaction_stats():
 
         return jsonify({
             "total_transactions": total_transactions,
+            "total_customers": total_customers,
             "genuine_transactions": genuine_transactions,
             "suspicious_transactions": suspicious_transactions,
+            "genuine_customers": genuine_only_customers,
+            "suspicious_customers": suspicious_only_customers,
+            "mixed_customers": mixed_customers,
             "total_volume": total_volume,
             "genuine_volume": genuine_volume,
             "suspicious_volume": suspicious_volume
