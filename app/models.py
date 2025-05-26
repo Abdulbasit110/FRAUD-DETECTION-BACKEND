@@ -182,3 +182,77 @@ class SenderFeatures(db.Model):
             "created_at": self.created_at,
             "updated_at": self.updated_at
         }
+
+class CustomerTransaction(db.Model):
+    """
+    Model for live customer transactions (real transactions from customers)
+    Separate from Transaction model which contains training data
+    """
+    __tablename__ = 'customer_transactions'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    
+    # Customer/Session Info
+    customer_id = db.Column(db.String(50), nullable=False, index=True)  # Unique customer identifier
+    session_id = db.Column(db.String(100), nullable=True)  # Session tracking
+    
+    # Transaction Details (same as Transaction model)
+    sending_date = db.Column(db.DateTime, nullable=True)
+    mtn = db.Column(db.String(50), nullable=True)
+    sender_id = db.Column(db.String(50), nullable=True)
+    sender_legal_name = db.Column(db.String(200), nullable=True)
+    channel = db.Column(db.String(100), nullable=True)
+    payer_rep_code = db.Column(db.String(50), nullable=True)
+    sender_country = db.Column(db.String(100), nullable=True)
+    sender_status = db.Column(db.String(50), nullable=True)
+    sender_date_of_birth = db.Column(db.DateTime, nullable=True)
+    sender_email = db.Column(db.String(120), nullable=True)
+    sender_mobile = db.Column(db.String(20), nullable=True)
+    sender_phone = db.Column(db.String(20), nullable=True)
+    beneficiary_client_id = db.Column(db.String(50), nullable=True)
+    beneficiary_name = db.Column(db.String(200), nullable=True)
+    beneficiary_first_name = db.Column(db.String(100), nullable=True)
+    beneficiary_country = db.Column(db.String(100), nullable=True)
+    beneficiary_email = db.Column(db.String(120), nullable=True)
+    beneficiary_mobile = db.Column(db.String(20), nullable=True)
+    beneficiary_phone = db.Column(db.String(20), nullable=True)
+    sending_country = db.Column(db.String(100), nullable=True)
+    payout_country = db.Column(db.String(100), nullable=True)
+    status = db.Column(db.String(255), nullable=True)
+    total_sale = db.Column(db.Float, nullable=True)
+    sending_currency = db.Column(db.String(10), nullable=True)
+    payment_method = db.Column(db.String(50), nullable=True)
+    compliance_release_date = db.Column(db.DateTime, nullable=True)
+    
+    # ML Prediction Results
+    sender_status_detail = db.Column(db.String(255), nullable=True)  # Genuine/Suspicious
+    prediction_confidence = db.Column(db.Float, nullable=True)  # Model confidence score
+    prediction_timestamp = db.Column(db.DateTime, default=func.now())  # When prediction was made
+    model_version = db.Column(db.String(50), nullable=True)  # Track which model version was used
+    
+    # Audit Fields
+    created_at = db.Column(db.DateTime, default=func.now())
+    updated_at = db.Column(db.DateTime, default=func.now(), onupdate=func.now())
+    
+    # Risk Assessment
+    risk_score = db.Column(db.Float, nullable=True)  # Overall risk score
+    risk_factors = db.Column(db.Text, nullable=True)  # JSON string of risk factors
+    
+    # Transaction Processing
+    is_flagged = db.Column(db.Boolean, default=False)  # Whether transaction is flagged for review
+    review_status = db.Column(db.String(50), default='pending')  # pending, approved, rejected
+    reviewed_by = db.Column(db.String(100), nullable=True)  # Who reviewed the transaction
+    reviewed_at = db.Column(db.DateTime, nullable=True)  # When it was reviewed
+
+    def to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+    def to_dict_with_metadata(self):
+        """Extended dict with additional metadata for frontend"""
+        base_dict = self.to_dict()
+        base_dict.update({
+            'is_live_transaction': True,
+            'transaction_type': 'customer',
+            'days_since_prediction': (func.now() - self.prediction_timestamp).days if self.prediction_timestamp else 0
+        })
+        return base_dict

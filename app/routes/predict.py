@@ -6,7 +6,7 @@ import pandas as pd
 from flask_socketio import emit
 from sqlalchemy.orm.exc import NoResultFound
 from app import db, socketio
-from app.models import Transaction, Notification, User, SenderFeatures
+from app.models import Transaction, CustomerTransaction, Notification, User, SenderFeatures
 from datetime import datetime, timedelta
 from sqlalchemy import func
 
@@ -235,10 +235,10 @@ def predict():
         # if not user:
         #     return jsonify({'error': f'User with id {user_id} does not exist.'}), 400
         
-        print(f"[DEBUG] Using user_id: {user_id}")
-
-        # Create and store the new transaction first
-        transaction = Transaction(
+        print(f"[DEBUG] Using user_id: {user_id}")        # Create and store the new customer transaction first
+        transaction = CustomerTransaction(
+            customer_id=data.get("customer_id", user_id),  # Use customer_id if provided, fallback to user_id
+            session_id=data.get("session_id"),
             sending_date=data.get("sending_date"),
             mtn=data.get("mtn"),
             sender_id=data.get("sender_id"),
@@ -260,19 +260,18 @@ def predict():
             beneficiary_phone=data.get("beneficiary_phone"),
             sending_country=data.get("sending_country"),
             payout_country=data.get("payout_country"),
-            status="Pending",  # Default status before prediction
-            total_sale=data.get("total_sale"),
+            status="Pending",  # Default status before prediction            total_sale=data.get("total_sale"),
             sending_currency=data.get("sending_currency"),
             payment_method=data.get("payment_method"),
             compliance_release_date=data.get("compliance_release_date"),
-            sender_status_detail=None  # Initially None, will be updated after prediction
-        )
-
-        # Save transaction to DB
-        print("[DEBUG] Saving transaction to database...")
+            sender_status_detail=None,  # Initially None, will be updated after prediction
+            prediction_confidence=None,  # Will be set after prediction
+            model_version="v1.0"  # Track model version
+        )        # Save customer transaction to DB
+        print("[DEBUG] Saving customer transaction to database...")
         db.session.add(transaction)
         db.session.commit()
-        print(f"[DEBUG] Transaction saved with ID: {transaction.id}")
+        print(f"[DEBUG] Customer transaction saved with ID: {transaction.id}")
 
         # Get the sender_id to filter transactions
         sender_id = data.get("sender_id")
@@ -324,11 +323,12 @@ def predict():
         predicted_status = label_map.get(predicted_label, "Unknown")
         confidence = max(prediction_proba) * 100
         print(f"[DEBUG] Predicted status: {predicted_status}, Confidence: {confidence:.1f}%")
-        
-        # Update transaction with prediction result
-        print("[DEBUG] Updating transaction with prediction result")
+          # Update customer transaction with prediction result
+        print("[DEBUG] Updating customer transaction with prediction result")
         transaction.status = f"Predicted: {predicted_status}"
         transaction.sender_status_detail = predicted_status
+        transaction.prediction_confidence = confidence
+        transaction.risk_score = confidence if predicted_status == "Suspicious" else (100 - confidence)
         db.session.commit()
         
         # Create notification for the user
@@ -358,13 +358,13 @@ def predict():
             "high_alert_date": datetime.now().isoformat() if predicted_status == "Suspicious" else None,
             "confidence": f"{confidence:.1f}%"
         }, broadcast=True, namespace="/")
-        
         print("[DEBUG] Prediction process completed successfully")
         return jsonify({
-            "message": "Transaction added and predicted successfully.",
+            "message": "Customer transaction added and predicted successfully.",
             "transaction_id": transaction.id,
             "predicted_label": predicted_status,
             "confidence": f"{confidence:.1f}%",
+            "risk_score": transaction.risk_score,
             "features_used": features_dict
         }), 201
 
