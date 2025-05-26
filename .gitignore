@@ -31,3 +31,4 @@ Thumbs.db
 .vercel
 .vercelignore
 
+test_fixed_prediction.py

@@ -257,17 +257,19 @@ def predict():
             beneficiary_country=data.get("beneficiary_country"),
             beneficiary_email=data.get("beneficiary_email"),
             beneficiary_mobile=data.get("beneficiary_mobile"),
-            beneficiary_phone=data.get("beneficiary_phone"),
-            sending_country=data.get("sending_country"),
+            beneficiary_phone=data.get("beneficiary_phone"),            sending_country=data.get("sending_country"),
             payout_country=data.get("payout_country"),
-            status="Pending",  # Default status before prediction            total_sale=data.get("total_sale"),
+            status="Pending",  # Default status before prediction
+            total_sale=data.get("total_sale"),
             sending_currency=data.get("sending_currency"),
             payment_method=data.get("payment_method"),
             compliance_release_date=data.get("compliance_release_date"),
             sender_status_detail=None,  # Initially None, will be updated after prediction
             prediction_confidence=None,  # Will be set after prediction
             model_version="v1.0"  # Track model version
-        )        # Save customer transaction to DB
+        )
+        
+        # Save customer transaction to DB
         print("[DEBUG] Saving customer transaction to database...")
         db.session.add(transaction)
         db.session.commit()
@@ -322,31 +324,35 @@ def predict():
         label_map = {0: "Genuine", 1: "Suspicious"}
         predicted_status = label_map.get(predicted_label, "Unknown")
         confidence = max(prediction_proba) * 100
-        print(f"[DEBUG] Predicted status: {predicted_status}, Confidence: {confidence:.1f}%")
-          # Update customer transaction with prediction result
+        print(f"[DEBUG] Predicted status: {predicted_status}, Confidence: {confidence:.1f}%")        # Update customer transaction with prediction result
         print("[DEBUG] Updating customer transaction with prediction result")
+        
+        # Convert numpy values to native Python types for database storage
+        confidence_python = float(confidence) if hasattr(confidence, 'item') else float(confidence)
+        risk_score_python = float(confidence_python if predicted_status == "Suspicious" else (100 - confidence_python))
+        
         transaction.status = f"Predicted: {predicted_status}"
         transaction.sender_status_detail = predicted_status
-        transaction.prediction_confidence = confidence
-        transaction.risk_score = confidence if predicted_status == "Suspicious" else (100 - confidence)
-        db.session.commit()
-        
-        # Create notification for the user
-        print("[DEBUG] Creating notification")
-        notification = Notification(
-            user_id=user_id,  # Use user_id directly without validation
-            message=f"New transaction added. Predicted category: {predicted_status} (Confidence: {confidence:.1f}%)",
-            transaction_id=transaction.id,
-            sender_name=transaction.sender_legal_name,
-            mobile_number=transaction.sender_mobile,
-            amount=transaction.total_sale,
-            status=predicted_status,
-            high_alert_date=datetime.now() if predicted_status == "Suspicious" else None
-        )
-        db.session.add(notification)
-        db.session.commit()
-        
-        # Emit real-time notification
+        transaction.prediction_confidence = confidence_python
+        transaction.risk_score = risk_score_python
+        db.session.commit()        # Create notification for the user (only if user_id is provided)
+        if user_id is not None:
+            print("[DEBUG] Creating notification")
+            notification = Notification(
+                user_id=user_id,
+                message=f"New transaction added. Predicted category: {predicted_status} (Confidence: {confidence_python:.1f}%)",
+                transaction_id=transaction.id,
+                sender_name=transaction.sender_legal_name,
+                mobile_number=transaction.sender_mobile,
+                amount=transaction.total_sale,
+                status=predicted_status,
+                high_alert_date=datetime.now() if predicted_status == "Suspicious" else None
+            )
+            db.session.add(notification)
+            db.session.commit()
+        else:
+            print("[DEBUG] No user_id provided, skipping notification creation")
+          # Emit real-time notification
         print("[DEBUG] Emitting real-time notification")
         emit("new_transaction", {
             "message": f"New transaction added. Predicted category: {predicted_status}",
@@ -356,15 +362,15 @@ def predict():
             "amount": transaction.total_sale,
             "status": predicted_status,
             "high_alert_date": datetime.now().isoformat() if predicted_status == "Suspicious" else None,
-            "confidence": f"{confidence:.1f}%"
+            "confidence": f"{confidence_python:.1f}%"
         }, broadcast=True, namespace="/")
         print("[DEBUG] Prediction process completed successfully")
         return jsonify({
             "message": "Customer transaction added and predicted successfully.",
             "transaction_id": transaction.id,
             "predicted_label": predicted_status,
-            "confidence": f"{confidence:.1f}%",
-            "risk_score": transaction.risk_score,
+            "confidence": f"{confidence_python:.1f}%",
+            "risk_score": risk_score_python,
             "features_used": features_dict
         }), 201
 
